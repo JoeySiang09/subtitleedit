@@ -147,6 +147,8 @@ namespace Nikse.SubtitleEdit.Forms
         private long _endSecondsNewPositionTicks;
         private const double EndDelay = 0.05;
         private int _autoContinueDelayCount = -1;
+		private int _autoRepeatDelayCount = -1;
+		private bool _isRepeatDelay = false;
         private long _lastTextKeyDownTicks;
         private long _lastHistoryTicks;
         private long _lastWaveformMenuCloseTicks;
@@ -24402,8 +24404,7 @@ namespace Nikse.SubtitleEdit.Forms
                             }
                         }
 
-
-                        mediaPlayer.CurrentPosition = _endSeconds;
+                        mediaPlayer.CurrentPosition = _endSeconds - EndDelay - EndDelay;
                         if (_playSelectionIndex >= 0)
                         {
                             var nextIndex = SubtitleListview1.GetSelectedIndices().OrderBy(pix => pix).FirstOrDefault(pix => pix > _playSelectionIndex);
@@ -24451,6 +24452,7 @@ namespace Nikse.SubtitleEdit.Forms
                         if (_endSeconds >= 0 && currentPosition >= _endSeconds && checkBoxAutoRepeatOn.Checked)
                         {
                             mediaPlayer.Pause();
+							mediaPlayer.CurrentPosition = _endSeconds - EndDelay - EndDelay;
                             _endSeconds = -1;
 
                             if (checkBoxAutoRepeatOn.Checked && _repeatCount > 0)
@@ -24463,16 +24465,24 @@ namespace Nikse.SubtitleEdit.Forms
                                 {
                                     labelStatus.Text = string.Format(_language.VideoControls.RepeatingXTimesLeft, _repeatCount);
                                 }
-
                                 _repeatCount--;
-                                if (_subtitleListViewIndex >= 0 && _subtitleListViewIndex < _subtitle.Paragraphs.Count)
-                                {
-                                    PlayPart(_subtitle.Paragraphs[_subtitleListViewIndex]);
-                                }
+								_autoRepeatDelayCount = int.Parse(comboBoxAutoContinue.Text);
+								_autoContinueDelayCount = int.Parse(comboBoxAutoContinue.Text);
+								_isRepeatDelay = true;
+								
+								if (_autoRepeatDelayCount <= 0)
+								{
+									TimerAutoContinueTick(null, null);
+								}
+								else
+								{
+									timerAutoContinue.Start();
+								}
                             }
                             else if (checkBoxAutoContinue.Checked)
                             {
                                 _autoContinueDelayCount = int.Parse(comboBoxAutoContinue.Text);
+								_isRepeatDelay = false;
                                 if (_repeatCount == 1)
                                 {
                                     labelStatus.Text = _language.VideoControls.AutoContinueInOneSecond;
@@ -25851,20 +25861,31 @@ namespace Nikse.SubtitleEdit.Forms
             }
 
             _autoContinueDelayCount--;
+			_autoRepeatDelayCount--;
 
             if (_autoContinueDelayCount <= 0)
             {
                 timerAutoContinue.Stop();
+				if (_isRepeatDelay)
+				{
+					if (_subtitleListViewIndex >= 0 && _subtitleListViewIndex < _subtitle.Paragraphs.Count)
+					{
+						PlayPart(_subtitle.Paragraphs[_subtitleListViewIndex]);
+					}
+				}
 
-                if ((Stopwatch.GetTimestamp() - _lastTextKeyDownTicks) > 10000 * 700) // only if last typed char was entered > 700 milliseconds
-                {
-                    labelStatus.Text = string.Empty;
-                    PlayNext();
-                }
-                else
-                {
-                    labelStatus.Text = _language.VideoControls.StillTypingAutoContinueStopped;
-                }
+				else 
+				{
+					if ((Stopwatch.GetTimestamp() - _lastTextKeyDownTicks) > 10000 * 700) // only if last typed char was entered > 700 milliseconds
+					{
+						labelStatus.Text = string.Empty;
+						PlayNext();
+					}
+					else
+					{
+						labelStatus.Text = _language.VideoControls.StillTypingAutoContinueStopped;
+					}
+				}
             }
             else
             {
